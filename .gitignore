@@ -1,46 +1,53 @@
-@"
-# Environment variables and secrets
+# Environment files and secrets
 .env
 .env.*
 !.env.example
 
-# Python
+# Python bytecode, caches, and virtual environments
 __pycache__/
 *.py[cod]
-*.pyo
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.tox/
+.nox/
 .venv/
 venv/
 env/
+ENV/
 
-# Node
+# Python test and coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Node.js dependencies and generated frontend output
 node_modules/
 dist/
 build/
 .vite/
 coverage/
+*.tsbuildinfo
 
-# IDE
+# Local database and vector-store data
+mongodb_data/
+qdrant_storage/
+redis_data/
+
+# IDE and editor files
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# OS
+# Operating system files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs
+# Logs and temporary files
 *.log
-
-# Temporary files
+logs/
 *.tmp
 *.bak
-
-# Database and vector storage
-data/
-storage/
-qdrant_storage/
-
-"@ | Set-Content -Encoding utf8 .gitignore
