@@ -6,7 +6,7 @@
 
 Aristos is a single-user Engineering Knowledge Copilot. The MVP will accept PDF, TXT, and Markdown files, let the user ask questions, retrieve relevant passages, generate answers grounded in those passages with citations, and abstain when evidence is insufficient.
 
-**Implemented today:** the repository scaffold has a FastAPI health endpoint and a minimal React landing screen. The document workflow, SQLite/local storage, Qdrant integration, ingestion, retrieval, answer generation, citation validation, abstention, deletion, and user-facing workflow remain planned.
+**Implemented today:** the repository has a FastAPI health endpoint, a minimal React landing screen, Qdrant client/lifecycle and connectivity health check, and a SQLite initialization foundation that creates the initial documents metadata table. Document upload, local source-file persistence, ingestion, retrieval, answer generation, citation validation, abstention, deletion, and user-facing workflow remain planned.
 
 ## 2. Approved architecture and technology
 
@@ -18,7 +18,7 @@ Use one modular-monolith Python/FastAPI application with Pydantic validation and
 | Frontend | React, TypeScript, Vite, Tailwind CSS | Scaffold exists; MVP workflow planned |
 | Backend | Python, FastAPI, Pydantic; modular monolith | Health endpoint scaffolded; application modules planned |
 | Ingestion | Synchronous within the API/application process | Planned |
-| Metadata and lifecycle | SQLite | Planned |
+| Metadata and lifecycle | SQLite | Connection initialization and initial table implemented; document workflow planned |
 | Source documents | Local file storage under an application-controlled root | Planned |
 | Vector search | Qdrant | Planned |
 | Model calls | OpenAI embeddings and LLM, behind backend integration modules | Planned |
@@ -29,6 +29,12 @@ Use one modular-monolith Python/FastAPI application with Pydantic validation and
 The MVP is a single-user application, so SQLite is sufficient for durable metadata and lifecycle records without the operational overhead of a managed/server database or multi-user coordination. It provides transactions for local application state. Local files keep source documents easy to persist and inspect without GridFS or object-storage setup. These choices fit one application instance with access to its data directory and make local setup and backup straightforward.
 
 This scope does not require horizontal replicas, shared file storage, organization isolation, or large concurrent write volumes. SQLite and local files do not provide those properties; reconsider them only if real deployment needs require it. Qdrant remains separate because it provides vector search. Its vectors are derived from originals and can be rebuilt.
+
+### Initial SQLite metadata foundation
+
+Use Python's built-in `sqlite3`. The default database path is `backend/data/aristos.db`, resolved from the backend project location rather than the process working directory. `ARISTOS_DATABASE_PATH` can override it; relative override paths are also resolved from the backend project location. Create the parent directory during initialization, and keep the generated `backend/data/` runtime directory out of version control.
+
+The initial `documents` table contains exactly `id TEXT PRIMARY KEY`, `original_filename TEXT NOT NULL`, `storage_key TEXT NOT NULL`, and `status TEXT NOT NULL`. Store `storage_key` as a relative reference. The status column has no default or database-enforced value list. The lifecycle documentation describes ready, failed, and unavailable states, but does not specify an initial value for a newly accepted document or a complete status contract; resolve that before implementing the upload lifecycle rather than inventing states here.
 
 ## 3. Preserved input and chunking decisions
 
@@ -98,7 +104,8 @@ This is a plan, not a status report. Planned features must not be described as i
 - Select a specific OpenAI chat model and bounded context, output, and cost budgets before enabling generation.
 - Select and validate a tokenizer for chunk sizing and the 100,000-token input limit.
 - Define and obtain owner approval for a bounded overall ingestion-request budget before implementation. It must bound the synchronous upload-to-index path in addition to the existing extraction limit and provider timeouts; do not change those existing limits or invent timeout values here.
-- Choose exact settings names, local data-directory defaults, Qdrant collection configuration, and client timeout values during implementation. Keep secrets out of committed configuration.
+- Choose Qdrant collection configuration and client timeout values during implementation. The SQLite path and initial metadata schema are recorded above. Keep secrets out of committed configuration.
+- Define the initial document status when the upload lifecycle is implemented; the current schema intentionally has no status default or enumerated constraint.
 - Finalize the minimal consent prompt/recording behavior before sending user documents to OpenAI.
 - Define concrete API response/error shapes and a cleanup retry interaction while implementing the workflow.
 

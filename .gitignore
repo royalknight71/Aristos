@@ -31,6 +31,7 @@ coverage/
 *.tsbuildinfo
 
 # Local database and vector-store data
+/backend/data/
 mongodb_data/
 qdrant_storage/
 redis_data/
