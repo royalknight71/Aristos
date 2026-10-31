@@ -1,101 +1,49 @@
 # Aristos — Engineering Knowledge Copilot
 
-Aristos is an engineering knowledge copilot in early development. The initial scaffold contains a FastAPI health endpoint and a minimal React landing screen; document processing, search, chat, authentication, and infrastructure integrations remain planned.
+Aristos is a single-user Engineering Knowledge Copilot. Its MVP lets one user upload PDF, TXT, and Markdown documents, ask questions, retrieve relevant passages, and receive answers grounded in those passages with citations. It abstains when the available evidence is insufficient.
 
-## Problem statement
+## MVP status
 
-Engineering teams often need to find trustworthy details across specifications, runbooks, design documents, and other technical references. Aristos is intended to make that knowledge easier to search while keeping answers tied to source passages and abstaining when the available evidence is insufficient.
+The current scaffold contains a FastAPI health endpoint and a minimal React landing screen. Upload, ingestion, retrieval, question answering, citations, abstention, and document deletion are **planned**; they are not yet implemented. The roadmap below describes planned work, not completed functionality.
 
-## Core features
+## MVP technology
 
-Planned capabilities include:
+| Area | Technology |
+|---|---|
+| Web client | React, TypeScript, Vite, Tailwind CSS |
+| API and application | Python, FastAPI, Pydantic |
+| Metadata and document state | SQLite |
+| Original files | Local file storage |
+| Vector retrieval | Qdrant |
+| Embeddings and answer generation | OpenAI embeddings and LLM |
+| Local services | Docker Compose |
 
-- Upload and process PDF, Markdown, and plain-text documents.
-- Search document content and answer questions using retrieved evidence.
-- Show validated citations with document names, page numbers where available, and relevant passages.
-- Maintain conversations and stream answers.
-- Evaluate retrieval quality, groundedness, citation correctness, and abstention behavior.
+The backend is a modular monolith. Ingestion runs synchronously in the API process; the MVP has no background worker or job broker. SQLite and local files keep a single-user local deployment simple to run, inspect, and back up. Qdrant holds derived vectors and can be rebuilt from retained source files. OpenAI credentials are backend-only configuration and must not be committed or sent to the browser.
 
-Only the initial web landing screen and API health endpoint are scaffolded. The capabilities above are not yet implemented.
+## Planned document and question flow
 
-## High-level architecture
+1. Validate the upload type, size, PDF page count, and extracted content limits.
+2. Store the source file locally and its metadata/state in SQLite.
+3. Extract text, preserve PDF page references where available, split it into chunks, request OpenAI embeddings, and synchronously write vectors to Qdrant. Report the document ready only after indexing succeeds.
+4. For a question, embed the query, retrieve relevant Qdrant passages, and ask the OpenAI LLM for an answer grounded in those passages.
+5. Validate every cited passage against the retrieved results. Return answer text and structured citations; abstain if evidence is insufficient.
+6. On deletion, remove the document's Qdrant vectors and local source, and update SQLite state. Surface cleanup failures rather than reporting successful deletion while vectors remain.
 
-The planned system uses a React web client and a Python/FastAPI modular monolith. The initial MVP architecture also calls for an asynchronous ingestion worker, MongoDB with GridFS for application records and original files, Qdrant for vector retrieval, and Redis with ARQ as the ingestion job broker. Redis is not intended for answer caching. OpenAI integrations will sit behind provider adapters.
+These flows are planned, not implemented. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module boundaries, failure handling, and detailed data flow.
 
-These infrastructure services and AI integrations are not part of the current scaffold.
+## Preserved processing defaults
 
-## Technology stack
+- Accept PDF, TXT, and Markdown only; maximum upload size is 20 MiB.
+- Maximum PDF length is 300 pages; extraction timeout is 60 seconds.
+- Maximum normalized text is 1 MiB UTF-8 and 100,000 counted input tokens per document, whichever comes first. Reject over-limit files; do not silently truncate them.
+- Start with 700-token chunks and 100-token overlap. These remain configurable experimental defaults, not a claim of optimal retrieval quality.
+- Start with OpenAI `text-embedding-3-small`; keep the embedding model configurable. Select the chat model and generation budgets before enabling answer generation.
 
-| Area | Selected technology |
-| --- | --- |
-| Frontend | React, TypeScript, Vite, Tailwind CSS, npm |
-| Backend | Python 3.14, FastAPI, Pydantic, Pydantic Settings |
-| Backend dependency management | uv with `pyproject.toml` and `uv.lock` |
-| Application data and source files (planned) | MongoDB and GridFS |
-| Vector search (planned) | Qdrant |
-| Ingestion jobs (planned) | Redis and ARQ |
-| Model integrations (planned) | OpenAI through provider adapters |
+## Local development
 
-The initial proposed embedding model is `text-embedding-3-small`, configurable through provider settings. The chat model and its token and cost budget remain open decisions. The experimental chunk defaults are 700 tokens with 100-token overlap.
+The repository currently has a backend health endpoint and a frontend scaffold. Docker Compose is the planned way to run local infrastructure such as Qdrant; the exact compose configuration is part of implementation work.
 
-## RAG workflow
-
-The planned retrieval-augmented generation workflow is:
-
-1. A user uploads an allowed document and has permission to share its contents with external API providers.
-2. The backend validates the file, stores the original in GridFS, records metadata and job state in MongoDB, and dispatches an ingestion job through Redis and ARQ.
-3. A worker extracts and normalizes text, preserves PDF page references and useful structure where possible, chunks the text, and requests embeddings through a provider adapter.
-4. The worker stores versioned chunk vectors and metadata in Qdrant. Only a complete active index is eligible for retrieval.
-5. The backend applies workspace and active-index filters, then retrieves relevant chunks for a question.
-6. The backend constructs a grounded answer using retrieved context, validates citation IDs against the retrieved chunks, and returns citations based on server-side metadata.
-7. The system abstains when retrieved evidence is insufficient.
-
-No part of this workflow is implemented yet.
-
-## Repository structure
-
-```text
-Aristos/
-├── backend/
-│   ├── .env.example
-│   ├── .python-version
-│   ├── pyproject.toml
-│   ├── uv.lock
-│   ├── app/
-│   │   ├── api/routes/health.py
-│   │   ├── core/config.py
-│   │   └── main.py
-│   └── tests/test_health.py
-├── docs/
-│   ├── ARCHITECTURE.md
-│   └── IMPLEMENTATION_DECISIONS.md
-├── frontend/
-│   ├── .nvmrc
-│   ├── index.html
-│   ├── package.json
-│   ├── package-lock.json
-│   ├── src/
-│   ├── tsconfig.json
-│   └── vite.config.ts
-├── .gitignore
-└── README.md
-```
-
-## Prerequisites
-
-- Python 3.14 (use the latest compatible patch available for your platform).
-- Node.js 24 LTS and npm.
-- uv for backend dependency management. The repository lockfile is generated with uv.
-
-Docker is not needed to run the current scaffold. It will be used when local infrastructure is added in a later milestone.
-
-## Local development setup
-
-The following commands use the repository's approved runtime versions.
-
-### Backend
-
-From the repository root:
+### Backend scaffold
 
 ```powershell
 cd backend
@@ -103,17 +51,9 @@ uv sync
 uv run uvicorn app.main:app --reload
 ```
 
-The API runs at `http://127.0.0.1:8000`; `GET /health` returns `{"status":"ok"}`.
+The API scaffold runs at `http://127.0.0.1:8000`; `GET /health` returns `{"status":"ok"}`. These commands describe the current scaffold only.
 
-Run backend tests with:
-
-```powershell
-uv run python -m pytest -p no:cacheprovider
-```
-
-### Frontend
-
-In a second terminal, from the repository root:
+### Frontend scaffold
 
 ```powershell
 cd frontend
@@ -121,47 +61,23 @@ npm ci
 npm run dev
 ```
 
-Run the TypeScript check and production build with:
+## Security and quality
 
-```powershell
-npm run typecheck
-npm run build
-```
+The MVP must validate all input, enforce configured upload and extraction limits, return safe errors, and keep OpenAI secrets out of source control and browser code. Require explicit user consent before sending document content to OpenAI for embedding or answer generation; uploading a file alone is not consent. Uploaded documents and retrieved passages are untrusted content. Citation identifiers must be checked against retrieved passages, and the answer path must abstain when evidence is inadequate.
 
-## Configuration and environment variables
+Document deletion must clean up both local source files and Qdrant vectors, with recoverable state for partial failures. Planned verification includes API tests and core pipeline tests for validation, ingestion, retrieval, citations, abstention, errors, and deletion cleanup. The current scaffold only includes a health endpoint test; the MVP tests are not yet implemented.
 
-The backend reads `ARISTOS_APP_NAME` through Pydantic Settings. A non-secret example is in `backend/.env.example`; settings may also be supplied through the process environment. No credentials or external service settings are needed by this scaffold.
+## Seven-day MVP roadmap
 
-## Security and data privacy
+1. **Day 1 — Foundation:** confirm configuration and secret handling; establish modular-monolith boundaries, SQLite access, local storage paths, and Docker Compose for Qdrant.
+2. **Day 2 — Upload and validation:** define document API/schema and SQLite metadata; validate PDF/TXT/Markdown, size, page count, and safe filenames; persist source files.
+3. **Day 3 — Synchronous ingestion:** implement extraction, normalization, chunking with preserved defaults, OpenAI embeddings, Qdrant indexing, and accurate ready/failed states.
+4. **Day 4 — Retrieval and answers:** implement question validation, vector retrieval, grounded LLM answers, citation validation, and basic abstention.
+5. **Day 5 — User workflow:** connect the React UI for upload, document listing/deletion, question entry, answers, citations, loading, and error states.
+6. **Day 6 — Lifecycle and tests:** implement deletion with vector cleanup and failure reporting; add API and core pipeline tests for limits, errors, citations, abstention, and cleanup.
+7. **Day 7 — Integration and review:** run the end-to-end local workflow, fix MVP blockers, review configuration/secret handling and documentation, and record known limitations.
 
-- Public access must remain disabled until a vetted authentication mechanism and workspace authorization are implemented. A development-only identity is not configured in this scaffold.
-- Document content may be sent to an external provider only when the user is permitted to share it; provider calls must check consent.
-- Workspace authorization and isolation must be enforced by the backend for application data and vector retrieval.
-- Provider credentials must stay out of browser code and source control.
-- Documents are untrusted input. Retrieved text is evidence, not instructions; citation IDs must be validated against retrieved chunks.
-- Deletion and re-indexing must handle partial failures across MongoDB/GridFS and Qdrant with retryable cleanup.
-
-These are architecture requirements, not claims that their controls have been implemented. The scaffold is not ready for public use.
-
-## Testing and evaluation strategy
-
-The scaffold includes backend tests for application startup and `GET /health`. The frontend provides TypeScript and production-build checks. Retrieval and answer evaluation is planned for a small labeled set covering answerable, ambiguous, and unanswerable questions, using Recall@5, Recall@10, Precision@5, MRR, and nDCG@10 alongside manual review of relevance, groundedness, citation correctness, and abstention behavior. Security tests, including cross-workspace isolation, must block release if they fail.
-
-The retrieval and answer evaluation suite is not implemented yet.
-
-## Roadmap
-
-The approved roadmap remains sequential, with each milestone verified before its Definition of Done is claimed:
-
-1. **Repository baseline and decisions:** establish the repository, runtime compatibility, and remaining owner decisions.
-2. **Local infrastructure and backend foundation:** add the API and worker foundation with MongoDB, Qdrant, and Redis services.
-3. **Document upload and ingestion:** implement validation, GridFS storage, ARQ jobs, extraction, chunking, embeddings, indexing, retries, re-indexing, and deletion cleanup.
-4. **Grounded question answering:** add workspace-filtered retrieval, conversations, validated citations, abstention, and streaming.
-5. **Minimal usable frontend:** implement upload, document status, chat, conversation history, and citation display.
-6. **Evaluation and hardening:** measure retrieval and citation quality, address security and reliability, and document operational limits.
-7. **Evidence-driven improvements:** consider reranking, OCR, hybrid retrieval, or other extensions only when evaluation or user feedback demonstrates a need.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/IMPLEMENTATION_DECISIONS.md](docs/IMPLEMENTATION_DECISIONS.md) for details and open decisions.
+The roadmap is a plan; no day or feature should be marked complete until implementation and its relevant checks are actually done.
 
 ## License
 
