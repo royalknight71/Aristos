@@ -25,6 +25,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application = FastAPI(title=app_settings.app_name, lifespan=lifespan)
     application.include_router(health_router)
+    from app.api.routes.documents import router as documents_router
+    application.include_router(documents_router)
+
     return application
 
 
