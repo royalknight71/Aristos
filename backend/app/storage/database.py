@@ -60,6 +60,21 @@ class SQLiteDatabase:
 
         return dict(row) if row is not None else None
 
+    def update_document_status(self, document_id: str, status: str) -> None:
+        """Update the status column for a document.
+
+        Raises if the document does not exist.
+        """
+        with self._connection() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE documents SET status = ? WHERE id = ?
+                """,
+                (status, document_id),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"Document {document_id} not found for status update")
+
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.path)

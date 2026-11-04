@@ -15,11 +15,28 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     database_path: Path = DEFAULT_DATABASE_PATH
 
-    model_config = SettingsConfigDict(env_prefix="ARISTOS_", case_sensitive=False)
+    upload_dir: Path = BACKEND_ROOT / "data" / "uploads"
+    max_upload_bytes: int = 20 * 1024 * 1024
+    pdf_max_pages: int = 300
+    pdf_extraction_timeout_seconds: int = 60
+    max_normalized_text_bytes: int = 1 * 1024 * 1024
+
+    model_config = SettingsConfigDict(
+        env_prefix="ARISTOS_",
+        case_sensitive=False,
+    )
 
     @field_validator("database_path", mode="before")
     @classmethod
     def resolve_database_path(cls, value: str | Path) -> Path:
+        path = Path(value)
+        if not path.is_absolute():
+            return BACKEND_ROOT / path
+        return path
+
+    @field_validator("upload_dir", mode="before")
+    @classmethod
+    def resolve_upload_dir(cls, value: str | Path) -> Path:
         path = Path(value)
         if not path.is_absolute():
             return BACKEND_ROOT / path
